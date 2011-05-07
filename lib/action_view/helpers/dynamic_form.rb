@@ -107,6 +107,7 @@ module ActionView
       #       :css_class => "inputError" %>
       #   # => <span class="inputError">Title simply can't be empty (or it won't work).</span>
       def error_message_on(object, method, *args)
+        options = args.extract_options!
         message = error_message(object, method, *args)
         unless message.blank?
           content_tag(options[:html_tag],
