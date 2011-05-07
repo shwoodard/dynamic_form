@@ -107,29 +107,34 @@ module ActionView
       #       :css_class => "inputError" %>
       #   # => <span class="inputError">Title simply can't be empty (or it won't work).</span>
       def error_message_on(object, method, *args)
-        options = args.extract_options!
-        unless args.empty?
-          ActiveSupport::Deprecation.warn('error_message_on takes an option hash instead of separate ' +
-            'prepend_text, append_text, html_tag, and css_class arguments', caller)
-
-          options[:prepend_text] = args[0] || ''
-          options[:append_text] = args[1] || ''
-          options[:html_tag] = args[2] || 'div'
-          options[:css_class] = args[3] || 'formError'
-        end
-        options.reverse_merge!(:prepend_text => '', :append_text => '', :html_tag => 'div', :css_class => 'formError')
-
-        object = convert_to_model(object)
-
-        if (obj = (object.respond_to?(:errors) ? object : instance_variable_get("@#{object}"))) &&
-          (errors = obj.errors[method]).presence
+        message = error_message(object, method, *args)
+        unless message.blank?
           content_tag(options[:html_tag],
-            (options[:prepend_text].html_safe << errors.first).safe_concat(options[:append_text]),
+            message,
             :class => options[:css_class]
           )
         else
           ''
         end
+      end
+
+      def error_message(object, method, *args)
+        options = args.extract_options!
+        unless args.empty?
+          ActiveSupport::Deprecation.warn('error_message_on takes an option hash instead of separate ' +
+            'prepend_text, append_text, html_tag, and css_class arguments', caller)
+
+          options[:prepend_text] = args[0]
+          options[:append_text] = args[1]
+          options[:html_tag] = args[2]
+          options[:css_class] = args[3]
+        end
+        options.reverse_merge!(:prepend_text => '', :append_text => '', :html_tag => 'label', :css_class => 'formError')
+
+        object = convert_to_model(object)
+        object, object_name = object.respond_to?(:errors) ? [object, nil] : [nil, object]
+
+        InstanceTag.new(object_name, method, self, object).to_error_message_tag(options)
       end
 
       # Returns a string with a <tt>DIV</tt> containing all of the error messages for the objects located as instance variables by the names
@@ -239,6 +244,10 @@ module ActionView
         end
       end
 
+      def error_label(object_name, method, options)
+        InstanceTag.new(object_name, method, self, options.delete(:object)).to_error_label_tag(options[:prepend_text])
+      end
+
     private
 
       def all_input_tags(record, record_name, options)
@@ -274,11 +283,38 @@ module ActionView
         def column_type
           object.send(:column_for_attribute, @method_name).type
         end
+
+        def to_error_message_tag(options)
+          options[:prepend_text] ||= ''
+          options[:append_text] ||= ''
+          options[:html_tag] ||= 'label'
+          options[:css_class] ||= 'formError'
+
+          if (errors = object.errors[method_name]).presence
+            (options[:prepend_text].html_safe << errors.first).safe_concat(options[:append_text])
+          else
+            ''
+          end
+        end
+
+        def to_error_label_tag(prepend_text = "")
+          return if object.nil? || !object.respond_to?(:errors) || object.errors[method_name].blank?
+          error_message = capture { to_error_message_tag(:prepend_text => prepend_text) }
+          content_tag(:div, to_label_tag(error_message), :class => 'error_wpr')
+        end
       end
 
       module FormBuilderMethods
+        def error_label(method, prepend_text = "")
+          @template.error_label(@object_name, method, objectify_options({ :prepend_text => prepend_text }))
+        end
+
         def error_message_on(method, *args)
           @template.error_message_on(@object || @object_name, method, *args)
+        end
+
+        def error_message(method, *args)
+          @template.error_message(@object || @object_name, method, *args)
         end
 
         def error_messages(options = {})
