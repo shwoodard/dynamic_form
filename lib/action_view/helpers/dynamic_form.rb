@@ -301,7 +301,7 @@ module ActionView
         def to_error_label_tag(prepend_text = "")
           return if object.nil? || !object.respond_to?(:errors) || object.errors[method_name].blank?
           error_message = capture { to_error_message_tag(:prepend_text => prepend_text) }
-          content_tag(:div, to_label_tag(error_message), :class => 'error_wpr')
+          content_tag(:div, to_label_tag(error_message, :class => 'error_label'), :class => 'error_wpr')
         end
       end
 
